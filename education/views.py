@@ -1,4 +1,5 @@
-from rest_framework import viewsets, generics
+from rest_framework import generics, viewsets
+
 from .models import Course, Lesson
 from .serializer import CourseSerializer, LessonSerializer
 
