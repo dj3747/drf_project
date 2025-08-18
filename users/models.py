@@ -1,7 +1,9 @@
-from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.base_user import BaseUserManager
+from django.contrib.auth.models import AbstractUser
 from django.db import models
+
 from education.models import Course, Lesson
+
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
@@ -46,6 +48,7 @@ class User(AbstractUser):
         verbose_name = "Пользователь"
         verbose_name_plural = "Пользователи"
 
+
 class Payment(models.Model):
     PAYMENT_METHOD_CASH = "cash"
     PAYMENT_METHOD_TRANSFER = "transfer"
@@ -57,12 +60,14 @@ class Payment(models.Model):
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="Пользователь")
     date = models.DateField(auto_now_add=True, verbose_name="Дата оплаты")
-    course = models.ForeignKey(Course, on_delete=models.SET_NULL, blank=True, null=True, verbose_name="Оплаченный курс")
-    lesson = models.ForeignKey(Lesson, on_delete=models.SET_NULL, blank=True, null=True, verbose_name="Оплаченный урок")
+    course = models.ForeignKey(
+        Course, on_delete=models.SET_NULL, blank=True, null=True, verbose_name="Оплаченный курс"
+    )
+    lesson = models.ForeignKey(
+        Lesson, on_delete=models.SET_NULL, blank=True, null=True, verbose_name="Оплаченный урок"
+    )
     amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Сумма оплаты")
     payment_method = models.CharField(max_length=10, choices=PAYMENT_METHOD_CHOICES, verbose_name="Способ оплаты")
 
     def __str__(self):
         return f"{self.user} - {self.amount} ₽ - {self.payment_method}"
-
-
