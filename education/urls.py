@@ -3,10 +3,10 @@ from rest_framework.routers import DefaultRouter
 
 from education.views import (CourseViewSet,
                              LessonCreateAPIView,
+                             LessonDestroyAPIView,
                              LessonListAPIView,
                              LessonRetrieveAPIView,
-                             LessonUpdateAPIView,
-                             LessonDestroyAPIView)
+                             LessonUpdateAPIView)
 
 router = DefaultRouter()
 router.register(r"courses", CourseViewSet)

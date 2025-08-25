@@ -1,8 +1,8 @@
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import filters, viewsets, generics, permissions
+from rest_framework import filters, generics, permissions, viewsets
 
 from .models import Payment, User
-from .serializer import PaymentSerializer, UserSerializer, RegisterSerializer
+from .serializer import PaymentSerializer, RegisterSerializer, UserSerializer
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -15,8 +15,6 @@ class RegisterApiView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = RegisterSerializer
     permission_classes = [permissions.AllowAny]
-
-
 
 
 class PaymentViewSet(viewsets.ModelViewSet):
