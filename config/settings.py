@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-from django.conf.global_settings import MEDIA_ROOT, AUTH_USER_MODEL
+from django.conf.global_settings import AUTH_USER_MODEL, MEDIA_ROOT
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "users",
     "education",
+    "django_filters",
 ]
 
 MIDDLEWARE = [
@@ -41,6 +42,12 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = "config.urls"
+
+REST_FRAMEWORK = {
+    "DEFAULT_FILTER_BACKENDS": [
+        "django_filters.rest_framework.DjangoFilterBackend",
+    ],
+}
 
 TEMPLATES = [
     {

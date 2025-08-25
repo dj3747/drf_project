@@ -1,5 +1,8 @@
-from django.contrib.auth.models import AbstractUser, BaseUserManager
+from django.contrib.auth.base_user import BaseUserManager
+from django.contrib.auth.models import AbstractUser
 from django.db import models
+
+from education.models import Course, Lesson
 
 
 class CustomUserManager(BaseUserManager):
@@ -44,3 +47,27 @@ class User(AbstractUser):
     class Meta:
         verbose_name = "Пользователь"
         verbose_name_plural = "Пользователи"
+
+
+class Payment(models.Model):
+    PAYMENT_METHOD_CASH = "cash"
+    PAYMENT_METHOD_TRANSFER = "transfer"
+
+    PAYMENT_METHOD_CHOICES = [
+        (PAYMENT_METHOD_CASH, "Наличные"),
+        (PAYMENT_METHOD_TRANSFER, "Перевод на карту"),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="Пользователь")
+    date = models.DateField(auto_now_add=True, verbose_name="Дата оплаты")
+    course = models.ForeignKey(
+        Course, on_delete=models.SET_NULL, blank=True, null=True, verbose_name="Оплаченный курс"
+    )
+    lesson = models.ForeignKey(
+        Lesson, on_delete=models.SET_NULL, blank=True, null=True, verbose_name="Оплаченный урок"
+    )
+    amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Сумма оплаты")
+    payment_method = models.CharField(max_length=10, choices=PAYMENT_METHOD_CHOICES, verbose_name="Способ оплаты")
+
+    def __str__(self):
+        return f"{self.user} - {self.amount} ₽ - {self.payment_method}"
