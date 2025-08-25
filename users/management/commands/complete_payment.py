@@ -41,6 +41,6 @@ class Command(BaseCommand):
                 payment_method=payment_method,
             )
             payment.save()
-            self.stdout.write(self.style.SUCCESS(f"Созданный платёж {i+1}: {payment}"))
+            self.stdout.write(self.style.SUCCESS(f"Созданный платёж {i + 1}: {payment}"))
 
         self.stdout.write(self.style.SUCCESS("Успешно заполненные платёжные данные."))

@@ -1,7 +1,7 @@
 from rest_framework import generics, viewsets
 from rest_framework.permissions import IsAuthenticated
 
-from users.permissions import IsModerator, IsNotModerator, IsOwner, IsOwnerOrModerator
+from users.permissions import IsNotModerator, IsOwner, IsOwnerOrModerator
 
 from .models import Course, Lesson
 from .serializer import CourseSerializer, LessonSerializer
