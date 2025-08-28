@@ -1,9 +1,12 @@
-from django.core.management.base import BaseCommand
-from users.models import Payment, User
-from education.models import Course
-from django.utils import timezone
-from decimal import Decimal
 import random
+from decimal import Decimal
+
+from django.core.management.base import BaseCommand
+from django.utils import timezone
+
+from education.models import Course
+from users.models import Payment, User
+
 
 class Command(BaseCommand):
     help = "Заполняет модель оплаты случайными данными"
@@ -19,7 +22,7 @@ class Command(BaseCommand):
             return
 
         if not courses:
-            self.stdout.write(self.style.WARNING('Курсы не найдены. Создайте сначала несколько курсов'))
+            self.stdout.write(self.style.WARNING("Курсы не найдены. Создайте сначала несколько курсов"))
             return
 
         num_payments = 10
@@ -38,6 +41,6 @@ class Command(BaseCommand):
                 payment_method=payment_method,
             )
             payment.save()
-            self.stdout.write(self.style.SUCCESS(f"Созданный платёж {i+1}: {payment}"))
+            self.stdout.write(self.style.SUCCESS(f"Созданный платёж {i + 1}: {payment}"))
 
         self.stdout.write(self.style.SUCCESS("Успешно заполненные платёжные данные."))
