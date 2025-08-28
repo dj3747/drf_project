@@ -1,10 +1,13 @@
 from rest_framework import generics, viewsets
+from rest_framework.generics import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from users.permissions import IsNotModerator, IsOwner, IsOwnerOrModerator
 
-from .models import Course, Lesson
-from .serializer import CourseSerializer, LessonSerializer
+from .models import Course, Lesson, Subscription
+from .serializer import CourseSerializer, LessonSerializer, CourseSubscriptionSerializer
 
 
 class CourseViewSet(viewsets.ModelViewSet):
@@ -85,3 +88,27 @@ class LessonDestroyAPIView(generics.DestroyAPIView):
     def get_queryset(self):
         """Фильтруем уроки: показываем только свои"""
         return Lesson.objects.filter(owner=self.request.user)
+
+
+class CourseSubscriptionAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = CourseSubscriptionSerializer
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        course_id = request.data.get("course_id")
+        course = get_object_or_404(Course, id=course_id)
+
+        if not course_id:
+            return Response({"error": "course_id обязателен"}, status=400)
+
+        subscription = Subscription.objects.filter(user=user, course=course)
+
+        if subscription.exists():
+            subscription.delete()
+            message = "Подписка удалена"
+        else:
+            Subscription.objects.create(user=user, course=course)
+            message = "Подписка добавлена"
+
+        return Response({"message": message})
