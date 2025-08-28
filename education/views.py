@@ -7,12 +7,14 @@ from rest_framework.views import APIView
 from users.permissions import IsNotModerator, IsOwner, IsOwnerOrModerator
 
 from .models import Course, Lesson, Subscription
+from .paginators import StandardPagination
 from .serializer import CourseSerializer, LessonSerializer, CourseSubscriptionSerializer
 
 
 class CourseViewSet(viewsets.ModelViewSet):
     queryset = Course.objects.all()
     serializer_class = CourseSerializer
+    pagination_class = StandardPagination
 
     def get_permissions(self):
         """Определяем права доступа в зависимости от действия"""
@@ -48,6 +50,7 @@ class LessonCreateAPIView(generics.CreateAPIView):
 class LessonListAPIView(generics.ListAPIView):
     serializer_class = LessonSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = StandardPagination
 
     def get_queryset(self):
         """Фильтруем уроки: модераторы видят все, остальные - только свои"""
