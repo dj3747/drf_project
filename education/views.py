@@ -101,7 +101,6 @@ class CourseSubscriptionAPIView(APIView):
         user = request.user
         course_id = request.data.get("course_id")
 
-
         if not course_id:
             return Response({"error": "course_id обязателен"}, status=400)
 
