@@ -89,5 +89,4 @@ class LessonAndSubscriptionTests(APITestCase):
         self.client.force_authenticate(user=self.other_user)
         response = self.client.post("/education/subscription/", {})
         print(f"Subscribe without course_id response: {response.status_code}")
-        print(f"Subscribe without course_id data: {response.data}")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
