@@ -100,10 +100,12 @@ class CourseSubscriptionAPIView(APIView):
     def post(self, request, *args, **kwargs):
         user = request.user
         course_id = request.data.get("course_id")
-        course = get_object_or_404(Course, id=course_id)
+
 
         if not course_id:
             return Response({"error": "course_id обязателен"}, status=400)
+
+        course = get_object_or_404(Course, id=course_id)
 
         subscription = Subscription.objects.filter(user=user, course=course)
 

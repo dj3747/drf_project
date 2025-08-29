@@ -33,7 +33,5 @@ class CourseSubscriptionSerializer(serializers.Serializer):
 
     def validate_course_id(self, value):
         if not Course.objects.filter(id=value).exists():
-            raise serializers.ValidationError(
-                "Курс с таким ID не найден"
-            )
+            raise serializers.ValidationError("Курс с таким ID не найден")
         return value
