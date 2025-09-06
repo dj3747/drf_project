@@ -15,7 +15,7 @@ class Course(models.Model):
         related_name="courses",
         verbose_name="Владелец",
     )
-    strip_product_id = models.CharField(max_length=255, blank=True, null=True)
+    stripe_product_id = models.CharField(max_length=255, blank=True, null=True)
     stripe_price_id = models.CharField(max_length=255, blank=True, null=True)
 
     def __str__(self):
