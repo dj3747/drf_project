@@ -123,3 +123,6 @@ SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
 }
+
+STRIP_SECRET_KEY = os.getenv("STRIP_SECRET_KEY")
+STRIP_PUBLISHABLE_KEY = os.getenv("STRIP_PUBLISHABLE_KEY")

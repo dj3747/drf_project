@@ -33,9 +33,10 @@ class CourseViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """Фильтруем курсы: модераторы видят все, остальные - только свои"""
         user = self.request.user
-        if user.groups.filter(name="Модераторы").exists():
-            return Course.objects.all()
-        return Course.objects.filter(owner=user)
+        if user.is_authenticated:
+            if user.groups.filter(name="Модераторы").exists():
+                return Course.objects.all()
+            return Course.objects.filter(owner=user)
 
 
 class LessonCreateAPIView(generics.CreateAPIView):
@@ -55,9 +56,10 @@ class LessonListAPIView(generics.ListAPIView):
     def get_queryset(self):
         """Фильтруем уроки: модераторы видят все, остальные - только свои"""
         user = self.request.user
-        if user.groups.filter(name="Модераторы").exists():
-            return Lesson.objects.all()
-        return Lesson.objects.filter(owner=user)
+        if user.is_authenticated:
+            if user.groups.filter(name="Модераторы").exists():
+                return Lesson.objects.all()
+            return Lesson.objects.filter(owner=user)
 
 
 class LessonRetrieveAPIView(generics.RetrieveAPIView):
@@ -67,9 +69,10 @@ class LessonRetrieveAPIView(generics.RetrieveAPIView):
     def get_queryset(self):
         """Фильтруем уроки: модераторы видят все, остальные - только свои"""
         user = self.request.user
-        if user.groups.filter(name="Модераторы").exists():
-            return Lesson.objects.all()
-        return Lesson.objects.filter(owner=user)
+        if user.is_authenticated:
+            if user.groups.filter(name="Модераторы").exists():
+                return Lesson.objects.all()
+            return Lesson.objects.filter(owner=user)
 
 
 class LessonUpdateAPIView(generics.UpdateAPIView):
@@ -79,9 +82,10 @@ class LessonUpdateAPIView(generics.UpdateAPIView):
     def get_queryset(self):
         """Фильтруем уроки: модераторы видят все, остальные - только свои"""
         user = self.request.user
-        if user.groups.filter(name="Модераторы").exists():
-            return Lesson.objects.all()
-        return Lesson.objects.filter(owner=user)
+        if user.is_authenticated:
+            if user.groups.filter(name="Модераторы").exists():
+                return Lesson.objects.all()
+            return Lesson.objects.filter(owner=user)
 
 
 class LessonDestroyAPIView(generics.DestroyAPIView):
@@ -90,7 +94,10 @@ class LessonDestroyAPIView(generics.DestroyAPIView):
 
     def get_queryset(self):
         """Фильтруем уроки: показываем только свои"""
-        return Lesson.objects.filter(owner=self.request.user)
+        user = self.request.user
+        if user.is_authenticated:
+            return Lesson.objects.filter(owner=user)
+        return Lesson.objects.none()
 
 
 class CourseSubscriptionAPIView(APIView):
@@ -116,3 +123,36 @@ class CourseSubscriptionAPIView(APIView):
             message = "Подписка добавлена"
 
         return Response({"message": message})
+
+class BuyCourseView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        course = get_object_or_404(Course, pk=pk)
+
+        if not course.stripe_product_id:
+            product = create_stripe_product(course.title)
+            course.stripe_product_id = product.id
+
+        if not course.stripe_price_id:
+            price = create_stripe_price(course.stripe_product_id, int(course.price * 100))  # цену в копейках
+            course.stripe_price_id = price.id
+
+        course.save()
+
+        session = create_checkout_session(
+            course.stripe_price_id,
+            success_url='https://example.com/success/',
+            cancel_url='https://example.com/cancel/',
+        )
+
+        # Создание объекта Payment
+        Payment.objects.create(
+            user=request.user,
+            course=course,
+            amount=course.price,
+            stripe_session_id=session.id,
+            payment_url=session.url
+        )
+
+        return Response({'checkout_url': session.url})
