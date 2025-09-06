@@ -6,9 +6,10 @@ from rest_framework.views import APIView
 
 from users.permissions import IsNotModerator, IsOwner, IsOwnerOrModerator
 
-from .models import Course, Lesson, Subscription
+from .models import Course, Lesson, Payment, Subscription
 from .paginators import StandardPagination
-from .serializer import CourseSerializer, LessonSerializer, CourseSubscriptionSerializer
+from .serializer import CourseSerializer, CourseSubscriptionSerializer, LessonSerializer
+from .services.strip_api import create_checkout_session, create_stripe_price, create_stripe_product
 
 
 class CourseViewSet(viewsets.ModelViewSet):
@@ -124,6 +125,7 @@ class CourseSubscriptionAPIView(APIView):
 
         return Response({"message": message})
 
+
 class BuyCourseView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -142,8 +144,8 @@ class BuyCourseView(APIView):
 
         session = create_checkout_session(
             course.stripe_price_id,
-            success_url='https://example.com/success/',
-            cancel_url='https://example.com/cancel/',
+            success_url="https://example.com/success/",
+            cancel_url="https://example.com/cancel/",
         )
 
         # Создание объекта Payment
@@ -152,7 +154,7 @@ class BuyCourseView(APIView):
             course=course,
             amount=course.price,
             stripe_session_id=session.id,
-            payment_url=session.url
+            payment_url=session.url,
         )
 
-        return Response({'checkout_url': session.url})
+        return Response({"checkout_url": session.url})
