@@ -1,8 +1,8 @@
 import os
 from datetime import timedelta
 from pathlib import Path
-from celery.schedules import crontab
 
+from celery.schedules import crontab
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -140,14 +140,14 @@ CELERY_TASK_SERIALIZER = "json"
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
 
 CELERY_BEAT_SCHEDULE = {
-    'deactivate-inactive-users-every-day': {
-        'task': 'users.tasks.deactivate_inactive_users',
-        'schedule': crontab(hour=0, minute=0),  # каждый день в полночь
+    "deactivate-inactive-users-every-day": {
+        "task": "users.tasks.deactivate_inactive_users",
+        "schedule": crontab(hour=0, minute=0),  # каждый день в полночь
     },
 }
 
-REDIS_HOST=os.getenv("REDIS_HOST")
-REDIS_PORT=os.getenv("REDIS_PORT")
-REDIS_DB=os.getenv("REDIS_DB")
+REDIS_HOST = os.getenv("REDIS_HOST")
+REDIS_PORT = os.getenv("REDIS_PORT")
+REDIS_DB = os.getenv("REDIS_DB")
 
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"

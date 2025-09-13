@@ -12,6 +12,7 @@ from .serializer import CourseSerializer, CourseSubscriptionSerializer, LessonSe
 from .services.strip_api import create_checkout_session, create_stripe_price, create_stripe_product
 from .tasks import send_course_update_email
 
+
 class CourseViewSet(viewsets.ModelViewSet):
     queryset = Course.objects.all()
     serializer_class = CourseSerializer
