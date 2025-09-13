@@ -10,7 +10,7 @@ from .models import Course, Lesson, Payment, Subscription
 from .paginators import StandardPagination
 from .serializer import CourseSerializer, CourseSubscriptionSerializer, LessonSerializer
 from .services.strip_api import create_checkout_session, create_stripe_price, create_stripe_product
-
+from .tasks import send_course_update_email
 
 class CourseViewSet(viewsets.ModelViewSet):
     queryset = Course.objects.all()
@@ -38,6 +38,13 @@ class CourseViewSet(viewsets.ModelViewSet):
             if user.groups.filter(name="Модераторы").exists():
                 return Course.objects.all()
             return Course.objects.filter(owner=user)
+
+    def perform_update(self, serializer):
+        course = serializer.save()
+        subscriptions = Subscription.objects.filter(course=course)
+
+        for subscription in subscriptions:
+            send_course_update_email.delay(subscription.user.email, course.title)
 
 
 class LessonCreateAPIView(generics.CreateAPIView):

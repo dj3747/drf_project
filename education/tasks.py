@@ -1,6 +1,8 @@
 from celery import shared_task
 from django.core.mail import send_mail
 from django.conf import settings
+from rest_framework.utils import timezone
+
 
 @shared_task
 def send_course_update_email(user_email, course_title):

@@ -137,9 +137,7 @@ CELERY_TASK_TIME_LIMIT = 30 * 60
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 
-REDIS_HOST=os.getenv("REDIS_HOST")
-REDIS_PORT=os.getenv("REDIS_PORT")
-REDIS_DB=os.getenv("REDIS_DB")
+CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
 
 CELERY_BEAT_SCHEDULE = {
     'deactivate-inactive-users-every-day': {
@@ -147,3 +145,9 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(hour=0, minute=0),  # каждый день в полночь
     },
 }
+
+REDIS_HOST=os.getenv("REDIS_HOST")
+REDIS_PORT=os.getenv("REDIS_PORT")
+REDIS_DB=os.getenv("REDIS_DB")
+
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
