@@ -19,6 +19,20 @@
 14. В проекте настроена система обработки задач в фоновом режиме `Celery` 
   и установлен пакет для периодических задач `celery-beat`
 
+
+## Запуск проекта через `Docker-Compose`
+1. Клонируйте репозиторий `git@github.com:dj3747/drf_project.git`
+2. Создать файл `.env`
+3. Собрать контейнеры `docker-compose build`
+4. Запустить контейнеры `docker-compose up -d`
+5. Выполнить миграции `docker-compose exec web python manage.py migrate`
+6. Создать суперпользователя `docker-compose exec web python manage.py createsuperuser`
+7. Собрать статические файлы `docker-compose exec web python manage.py collectstatic --noinput`
+8. Открыть проект.Приложение доступно по адресу: http://localhost:8000
+9. Остановка контейнеров `docker-compose down`
+10. Логи контейнера `docker-compose logs -f web`
+
+
 ## Структура проекта
 Проект состоит из следующих пакетов и приложений:
 

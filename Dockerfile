@@ -1,7 +1,14 @@
 # Используем официальный Python-образ
-FROM python:3.11-slim
+FROM python:3.13-slim
 
-# Устанавливаем рабочую директорию в контейнере
+# Установим системные зависимости
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libpq-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Создаем директорию приложения
 WORKDIR /app
 
 # Установка Poetry
