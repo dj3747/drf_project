@@ -28,7 +28,7 @@
 5. Выполнить миграции `docker-compose exec web python manage.py migrate`
 6. Создать суперпользователя `docker-compose exec web python manage.py createsuperuser`
 7. Собрать статические файлы `docker-compose exec web python manage.py collectstatic --noinput`
-8. Открыть проект.Приложение доступно по адресу: http://localhost:8000
+8. Открыть проект. Приложение доступно по адресу: http://localhost:8000
 9. Остановка контейнеров `docker-compose down`
 10. Логи контейнера `docker-compose logs -f web`
 
