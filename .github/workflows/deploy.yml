@@ -1,9 +1,9 @@
 name: CI/CD
 on:
   push:
-    branches: [ "feature" ]
+    branches: [ "feature/homework" ]
   pull_request:
-    branches: [ "feature" ]
+    branches: [ "feature/homework" ]
 
 jobs:
   test:
