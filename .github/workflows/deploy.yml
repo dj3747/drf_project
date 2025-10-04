@@ -116,6 +116,27 @@ jobs:
             DB_USER=${{ secrets.DB_USER }}
             DB_PASSWORD=${{ secrets.DB_PASSWORD }}
             SECRET_KEY=${{ secrets.SECRET_KEY }}
+            
+            # --- СОЗДАНИЕ .env ФАЙЛА НА СЕРВЕРЕ ---
+            echo "--- Creating .env file on server ---"
+            cat << 'EOF' > .env
+            DB_NAME=${{ env.DB_NAME }}
+            DB_USER=${{ env.DB_USER }}
+            DB_PASSWORD=${{ env.DB_PASSWORD }}
+            DB_HOST=db
+            DB_PORT=5432
+            SECRET_KEY=${{ env.SECRET_KEY }}
+            STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
+            STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+            CELERY_BROKER_URL=redis://redis:6379/0
+            CELERY_RESULT_BACKEND=redis://redis:6379/0
+            REDIS_HOST=redis
+            REDIS_PORT=6379
+            REDIS_DB=0
+            DEBUG=False
+            EOF
+          # --- КОНЕЦ СОЗДАНИЯ .env ФАЙЛА ---
+
           script: |
             docker compose down
             
