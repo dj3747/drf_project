@@ -50,19 +50,10 @@ jobs:
         run: |
           poetry install --no-root
 
-      - name: Wait for Postgres
+      - name: Install redis-tools for redis-cli
         run: |
-          until pg_isready -h localhost -p 5432 -U postgres; do
-            echo "Waiting for Postgres..."
-            sleep 3
-          done
-
-      - name: Wait for Redis
-        run: |
-          until redis-cli -h localhost -p 6379 ping | grep PONG; do
-            echo "Waiting for Redis..."
-            sleep 3
-          done
+          sudo apt-get update
+          sudo apt-get install -y redis-tools
 
       - name: Run migrations
         env:
