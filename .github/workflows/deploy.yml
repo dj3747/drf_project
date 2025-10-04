@@ -123,8 +123,6 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: [ test, build-and-push ]
-    # Убедитесь, что это условие правильное для вашего рабочего процесса.
-    # Возможно, вы захотите деплоить на production, когда мержите в main, или по тегу.
     if: github.ref == 'refs/heads/feature/homework'
 
     steps:
@@ -136,20 +134,26 @@ jobs:
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
+          key: ${{ secrets.SSH_KEY }} # Ваш приватный SSH ключ (должен быть в секретах GitHub)
           port: 22 # Укажите, если SSH работает не на 22 порту
-          # Передача переменных окружения, которые нужны на сервере
-          # Если они есть в .env файле на сервере, эти переменные могут быть избыточны,
-          # но безопасно передать секреты никогда не повредит.
-          env: |
-            DB_NAME=${{ env.DB_NAME }} # Использовать переменные из предыдущего job'а, если они там определены
-            DB_USER=${{ env.DB_USER }}
-            DB_PASSWORD=${{ env.DB_PASSWORD }}
-            DB_HOST=db # Имя сервиса в docker-compose.yml на сервере
+          script: |
+            set -x # Включить вывод команд для отладки
+            
+            # Переходим в директорию проекта на сервере
+            cd ${{ secrets.DEPLOY_DIR }}
+            
+            # Создаем .env файл с переменными окружения
+            # Переменные берутся из секретов GitHub (убедитесь, что они добавлены)
+            # и из переменных окружения workflow (если они там определены)
+            cat << 'EOF' > .env
+            DB_NAME=${{ secrets.DB_NAME }}
+            DB_USER=${{ secrets.DB_USER }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            DB_HOST=db  # Убедитесь, что это имя сервиса Redis в docker-compose.yml на сервере
             DB_PORT=5432
             STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
             STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}
-            CELERY_BROKER_URL=redis://redis:6379/0
+            CELERY_BROKER_URL=redis://redis:6379/0 # Имена сервисов для Docker Compose
             CELERY_RESULT_BACKEND=redis://redis:6379/0
             REDIS_HOST=redis
             REDIS_PORT=6379
@@ -158,39 +162,15 @@ jobs:
             ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
             SECRET_KEY=${{ secrets.SECRET_KEY }}
             CSRF_TRUSTED_ORIGINS=${{ secrets.CSRF_TRUSTED_ORIGINS }}
-            DOCKER_HUB_USERNAME=${{ secrets.DOCKER_HUB_USERNAME }}
-            DOCKER_HUB_ACCESS_TOKEN=${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+            DOCKER_HUB_USERNAME=${{ secrets.DOCKER_HUB_USERNAME }} # Нужно для логина
+            DOCKER_HUB_ACCESS_TOKEN=${{ secrets.DOCKER_HUB_ACCESS_TOKEN }} # Нужно для логина
             IMAGE_NAME=${{ secrets.DOCKER_IMAGE_NAME }} # Например, 'yourdockerhubusername/drf-project'
-
-          script: |
-            set -x # Включить вывод команд для отладки
-            
-            # Переходим в директорию проекта на сервере
-            cd ${{ secrets.DEPLOY_DIR }}
-            
-            # Создаем .env файл с переменными окружения
-            # Убедитесь, что вы передаете все нужные переменные!
-            cat << 'EOF' > .env
-            DB_NAME=${{ env.DB_NAME }}
-            DB_USER=${{ env.DB_USER }}
-            DB_PASSWORD=${{ env.DB_PASSWORD }}
-            DB_HOST=db
-            DB_PORT=5432
-            STRIPE_SECRET_KEY=${{ env.STRIPE_SECRET_KEY }}
-            STRIPE_PUBLISHABLE_KEY=${{ env.STRIPE_PUBLISHABLE_KEY }}
-            CELERY_BROKER_URL=redis://redis:6379/0
-            CELERY_RESULT_BACKEND=redis://redis:6379/0
-            REDIS_HOST=redis
-            REDIS_PORT=6379
-            REDIS_DB=0
-            DEBUG=False
-            ALLOWED_HOSTS=${{ env.ALLOWED_HOSTS }}
-            SECRET_KEY=${{ env.SECRET_KEY }}
-            CSRF_TRUSTED_ORIGINS=${{ env.CSRF_TRUSTED_ORIGINS }}
             EOF
             
             # Login to Docker Hub
             echo ${{ env.DOCKER_HUB_ACCESS_TOKEN }} | docker login -u ${{ env.DOCKER_HUB_USERNAME }} --password-stdin
+            # Или так, если переменные окружения не переданы через env, а напрямую в .env
+            # echo ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }} | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
             
             # Stop old containers
             docker compose down || true
@@ -198,7 +178,6 @@ jobs:
             # Pull latest images
             # Убедитесь, что тег образа соответствует вашему workflow build-and-push
             docker pull ${{ env.IMAGE_NAME }}:latest 
-            # Или используйте тег на основе SHA коммита, если он передается
             
             # Start containers
             docker compose up -d
