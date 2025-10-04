@@ -135,6 +135,7 @@ jobs:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }} # Ваш приватный SSH ключ (должен быть в секретах GitHub)
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
           port: 22 # Укажите, если SSH работает не на 22 порту
           script: |
             set -x # Включить вывод команд для отладки
