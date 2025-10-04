@@ -122,35 +122,65 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
-    needs: [ test, build-and-push ]
+    needs: [ test, build-and-push ] # Зависит от тестов и сборки/пуша образа
     if: github.ref == 'refs/heads/feature/homework'
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Deploy to Yandex Cloud VM
+      # --- ШАГ 1: Копирование docker-compose.yaml на сервер ---
+      # Убедитесь, что файл docker-compose.yaml находится в корне вашего репозитория,
+      # или укажите правильный относительный путь (например, ./deploy/docker-compose.yaml)
+      - name: Copy docker-compose.yaml to server
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          port: 22
+          SOURCE: ./docker-compose.yaml # Путь к вашему локальному docker-compose.yaml
+          TARGET: ${{ secrets.DEPLOY_DIR }}/docker-compose.yaml # Путь на сервере
+          STRIP_SPOOFING: true
+
+      # --- ШАГ 2: Копирование nginx.conf на сервер ---
+      # Убедитесь, что файл nginx.conf находится рядом с docker-compose.yaml
+      - name: Copy nginx.conf to server
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          port: 22
+          SOURCE: ./nginx.conf # Путь к вашему локальному nginx.conf
+          TARGET: ${{ secrets.DEPLOY_DIR }}/nginx.conf # Путь на сервере
+          STRIP_SPOOFING: true
+
+      # --- ШАГ 3: Выполнение команд развертывания на сервере ---
+      - name: Execute deploy script on Yandex Cloud VM
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }} # Ваш приватный SSH ключ (должен быть в секретах GitHub)
+          key: ${{ secrets.SSH_KEY }}
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
-          port: 22 # Укажите, если SSH работает не на 22 порту
+          request_pty: true # Важно для корректной работы Docker команд
+          port: 22
           script: |
             set -x # Включить вывод команд для отладки
-            
-            # Переходим в директорию проекта на сервере
+
+            # Переходим в директорию проекта, где теперь лежат docker-compose.yaml и nginx.conf
             cd ${{ secrets.DEPLOY_DIR }}
-            
+
             # Создаем .env файл с переменными окружения
-            # Переменные берутся из секретов GitHub (убедитесь, что они добавлены)
-            # и из переменных окружения workflow (если они там определены)
+            # Убедитесь, что все нужные переменные передаются как секреты GitHub!
             cat << 'EOF' > .env
             DB_NAME=${{ secrets.DB_NAME }}
             DB_USER=${{ secrets.DB_USER }}
             DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-            DB_HOST=db  # Убедитесь, что это имя сервиса Redis в docker-compose.yml на сервере
+            DB_HOST=db # Имя сервиса в docker-compose.yml на сервере
             DB_PORT=5432
             STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
             STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}
@@ -162,32 +192,32 @@ jobs:
             DEBUG=False
             ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
             SECRET_KEY=${{ secrets.SECRET_KEY }}
-            CSRF_TRUSTED_ORIGINS=${{ secrets.CSRF_TRUSTED_ORIGINS }}
-            DOCKER_HUB_USERNAME=${{ secrets.DOCKER_HUB_USERNAME }} # Нужно для логина
-            DOCKER_HUB_ACCESS_TOKEN=${{ secrets.DOCKER_HUB_ACCESS_TOKEN }} # Нужно для логина
-            IMAGE_NAME=${{ secrets.DOCKER_IMAGE_NAME }} # Например, 'yourdockerhubusername/drf-project'
+            DOCKER_HUB_USERNAME=${{ secrets.DOCKER_HUB_USERNAME }}
+            DOCKER_HUB_ACCESS_TOKEN=${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
             EOF
-            
+
             # Login to Docker Hub
-            echo ${{ env.DOCKER_HUB_ACCESS_TOKEN }} | docker login -u ${{ env.DOCKER_HUB_USERNAME }} --password-stdin
-            # Или так, если переменные окружения не переданы через env, а напрямую в .env
-            # echo ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }} | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
-            
-            # Stop old containers
+            echo "${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
+
+            # Stop old containers (Nginx тоже будет остановлен)
             docker compose down || true
-            
+
             # Pull latest images
-            # Убедитесь, что тег образа соответствует вашему workflow build-and-push
-            docker pull ${{ env.IMAGE_NAME }}:latest 
-            
-            # Start containers
+            # Убедитесь, что IMAGE_NAME корректно передается и содержит полное имя образа
+            docker pull "${{ env.IMAGE_NAME }}:latest" # Образ вашего приложения
+            docker pull nginx:latest # Образ Nginx
+
+            # Start containers (включая Nginx с монтированным конфигом)
+            # Команды docker compose будут использовать docker-compose.yaml, который мы скопировали
             docker compose up -d
-            
-            # Run migrations
+
+            # Run migrations (на сервисе web)
+            # Убедитесь, что сервис, где запускаются миграции, называется 'web'
             docker compose exec web python manage.py migrate
-            
-            # Collect static files
+
+            # Collect static files (на сервисе web)
             docker compose exec web python manage.py collectstatic --noinput
-            
-            # Restart application
+
+            # Restart application (web сервис, Nginx должен перезапуститься сам при изменении конфига,
+            # но перезапуск web гарантирует, что он готов к работе)
             docker compose restart web
