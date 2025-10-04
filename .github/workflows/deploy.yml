@@ -130,34 +130,32 @@ jobs:
         uses: actions/checkout@v4
 
       # --- ШАГ 1: Копирование docker-compose.yaml на сервер ---
-      # Убедитесь, что файл docker-compose.yaml находится в корне вашего репозитория,
-      # или укажите правильный относительный путь (например, ./deploy/docker-compose.yaml)
       - name: Copy docker-compose.yaml to server
-        uses: appleboy/scp-action@master
+        # Укажите конкретную стабильную версию, например, v1.0.0
+        uses: appleboy/scp-action@v1.0.0
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
           port: 22
-          SOURCE: ./docker-compose.yaml # Путь к вашему локальному docker-compose.yaml
-          TARGET: ${{ secrets.DEPLOY_DIR }}/docker-compose.yaml # Путь на сервере
-          STRIP_SPOOFING: true
+          SOURCE: ./docker-compose.yaml
+          TARGET: ${{ secrets.DEPLOY_DIR }}/docker-compose.yaml
+          # STRIP_SPOOFING: true # <-- Удалено
 
       # --- ШАГ 2: Копирование nginx.conf на сервер ---
-      # Убедитесь, что файл nginx.conf находится рядом с docker-compose.yaml
       - name: Copy nginx.conf to server
-        uses: appleboy/scp-action@master
+        # Используйте ту же версию, что и выше
+        uses: appleboy/scp-action@v1.0.0
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
           port: 22
-          SOURCE: ./nginx.conf # Путь к вашему локальному nginx.conf
-          TARGET: ${{ secrets.DEPLOY_DIR }}/nginx.conf # Путь на сервере
-          STRIP_SPOOFING: true
-
+          SOURCE: ./nginx.conf
+          TARGET: ${{ secrets.DEPLOY_DIR }}/nginx.conf
+          # STRIP_SPOOFING: true # <-- Удалено
       # --- ШАГ 3: Выполнение команд развертывания на сервере ---
       - name: Execute deploy script on Yandex Cloud VM
         uses: appleboy/ssh-action@v1.0.3
