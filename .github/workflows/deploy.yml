@@ -1,4 +1,5 @@
 name: CI/CD
+
 on:
   push:
     branches: [ "feature/homework" ]
@@ -50,19 +51,6 @@ jobs:
         run: |
           poetry install --no-root
 
-      - name: Wait for Postgres
-        run: |
-          until pg_isready -h localhost -p 5432 -U postgres; do
-            echo "Waiting for Postgres..."
-            sleep 3
-          done
-
-      - name: Wait for Redis
-        run: |
-          until redis-cli -h localhost -p 6379 ping | grep PONG; do
-            echo "Waiting for Redis..."
-            sleep 3
-          done
 
       - name: Run migrations
         env:
@@ -74,8 +62,8 @@ jobs:
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
-          CELERY_BROKER_URL: redis://localhost:6379/0
-          CELERY_RESULT_BACKEND: redis://localhost:6379/0
+          CELERY_BROKER_URL: redis://redis:6379/0
+          CELERY_RESULT_BACKEND: redis://redis:6379/0
           REDIS_HOST: redis
           REDIS_PORT: 6379
           REDIS_DB: 0
@@ -88,13 +76,13 @@ jobs:
           DB_NAME: drf
           DB_USER: postgres
           DB_PASSWORD: Akoros781
-          DB_HOST: db
+          DB_HOST: localhost # Для доступа к сервису Postgres внутри CI runner'а
           DB_PORT: 5432
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
-          CELERY_BROKER_URL: redis://localhost:6379/0
-          CELERY_RESULT_BACKEND: redis://localhost:6379/0
+          CELERY_BROKER_URL: redis://redis:6379/0
+          CELERY_RESULT_BACKEND: redis://redis:6379/0
           REDIS_HOST: redis
           REDIS_PORT: 6379
           REDIS_DB: 0
@@ -105,7 +93,7 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     needs: test
-    if: github.ref == 'refs/heads/feature'
+    if: github.ref == 'refs/heads/feature/homework'
 
     steps:
       - name: Checkout repo
@@ -119,15 +107,6 @@ jobs:
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: |
-            ${{ secrets.DOCKER_HUB_USERNAME }}/drf-project:latest
-            ${{ secrets.DOCKER_HUB_USERNAME }}/drf-project:${{ github.sha }}
 
   deploy:
     runs-on: ubuntu-latest
