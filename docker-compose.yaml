@@ -70,6 +70,18 @@ services:
       - db
       - redis
 
+  nginx:
+    image: nginx:latest
+    container_name: nginx_proxy
+    ports:
+      - "80:80"
+    volumes:
+      - ./docker/conf.d:/etc/nginx/conf.d
+      - staticfiles:/app/static
+      - media_volume:/app/media
+    depends_on:
+      - web
+
 volumes:
   postgres_data:
   redis_data:
