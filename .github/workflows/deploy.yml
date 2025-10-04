@@ -140,7 +140,7 @@ jobs:
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
           port: 22
           SOURCE: ./docker-compose.yaml
-          TARGET: ${{ secrets.DEPLOY_DIR }}/docker-compose.yaml
+          TARGET: /var/www/drf_project/docker-compose.yaml
           # STRIP_SPOOFING: true # <-- Удалено
 
       # --- ШАГ 2: Копирование nginx.conf на сервер ---
@@ -154,7 +154,7 @@ jobs:
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
           port: 22
           SOURCE: ./nginx.conf
-          TARGET: ${{ secrets.DEPLOY_DIR }}/nginx.conf
+          TARGET: /var/www/drf_project/nginx.conf
           # STRIP_SPOOFING: true # <-- Удалено
       # --- ШАГ 3: Выполнение команд развертывания на сервере ---
       - name: Execute deploy script on Yandex Cloud VM
