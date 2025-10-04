@@ -164,25 +164,39 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
-          request_pty: true # Важно для корректной работы Docker команд
+          request_pty: true
           port: 22
+          # Добавляем переменную окружения, которая будет доступна в script:
+          environment_vars: |
+            DEPLOY_DIR_ON_SERVER={{ secrets.DEPLOY_DIR }}
           script: |
             set -x # Включить вывод команд для отладки
 
-            # Переходим в директорию проекта, где теперь лежат docker-compose.yaml и nginx.conf
-            cd ${{ secrets.DEPLOY_DIR }}
+            # Используем переменную, которую мы передали из workflow
+            # Теперь DEPLOY_DIR_ON_SERVER будет содержать реальный путь, например, /var/www/drf_project
+            echo "Deploying to directory: $DEPLOY_DIR_ON_SERVER"
+            cd "$DEPLOY_DIR_ON_SERVER"
+
+            # Проверка существования директории и прав доступа (на всякий случай)
+            if [ ! -d "$DEPLOY_DIR_ON_SERVER" ]; then
+              echo "Error: Deployment directory '$DEPLOY_DIR_ON_SERVER' does not exist."
+              exit 1
+            fi
+            if [ ! -w "$DEPLOY_DIR_ON_SERVER" ]; then
+              echo "Error: Deployment directory '$DEPLOY_DIR_ON_SERVER' is not writable for user '$(whoami)'."
+              exit 1
+            fi
 
             # Создаем .env файл с переменными окружения
-            # Убедитесь, что все нужные переменные передаются как секреты GitHub!
             cat << 'EOF' > .env
             DB_NAME=${{ secrets.DB_NAME }}
             DB_USER=${{ secrets.DB_USER }}
             DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-            DB_HOST=db # Имя сервиса в docker-compose.yml на сервере
+            DB_HOST=db
             DB_PORT=5432
             STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
             STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}
-            CELERY_BROKER_URL=redis://redis:6379/0 # Имена сервисов для Docker Compose
+            CELERY_BROKER_URL=redis://redis:6379/0
             CELERY_RESULT_BACKEND=redis://redis:6379/0
             REDIS_HOST=redis
             REDIS_PORT=6379
@@ -192,30 +206,27 @@ jobs:
             SECRET_KEY=${{ secrets.SECRET_KEY }}
             DOCKER_HUB_USERNAME=${{ secrets.DOCKER_HUB_USERNAME }}
             DOCKER_HUB_ACCESS_TOKEN=${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+            IMAGE_NAME=${{ secrets.DOCKER_HUB_USERNAME }}/drf-project
             EOF
 
             # Login to Docker Hub
             echo "${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
 
-            # Stop old containers (Nginx тоже будет остановлен)
+            # Stop old containers
             docker compose down || true
 
             # Pull latest images
-            # Убедитесь, что IMAGE_NAME корректно передается и содержит полное имя образа
-            docker pull "${{ env.IMAGE_NAME }}:latest" # Образ вашего приложения
-            docker pull nginx:latest # Образ Nginx
+            docker pull "${{ env.IMAGE_NAME }}:latest"
+            docker pull nginx:latest
 
-            # Start containers (включая Nginx с монтированным конфигом)
-            # Команды docker compose будут использовать docker-compose.yaml, который мы скопировали
+            # Start containers
             docker compose up -d
 
-            # Run migrations (на сервисе web)
-            # Убедитесь, что сервис, где запускаются миграции, называется 'web'
+            # Run migrations
             docker compose exec web python manage.py migrate
 
-            # Collect static files (на сервисе web)
+            # Collect static files
             docker compose exec web python manage.py collectstatic --noinput
 
-            # Restart application (web сервис, Nginx должен перезапуститься сам при изменении конфига,
-            # но перезапуск web гарантирует, что он готов к работе)
+            # Restart application
             docker compose restart web
