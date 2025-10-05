@@ -189,7 +189,7 @@ jobs:
                     proxy_set_header X-Forwarded-Proto $scheme;
                 }
             }
-            EOF
+            EOC
             )
             echo "$NGINX_CONF_CONTENT" > nginx.conf
             # --- КОНЕЦ СОЗДАНИЯ nginx.conf ---
