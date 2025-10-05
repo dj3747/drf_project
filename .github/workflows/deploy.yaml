@@ -93,11 +93,25 @@ jobs:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
-          password: ${{ secrets.SSH_PASSPHRASE }}
           script: |
             set -ex
+            # Настраиваем SSH для GitHub
+            mkdir -p ~/.ssh
+            echo "${{ secrets.GH_SSH_PRIVATE_KEY }}" > ~/.ssh/github_key
+            chmod 600 ~/.ssh/github_key
+            ssh-keyscan github.com >> ~/.ssh/known_hosts
+            git config --global core.sshCommand "ssh -i ~/.ssh/github_key -o StrictHostKeyChecking=no"
+            
+            # Работа с репозиторием
+            cd /home/app
+            if [ ! -d "drf_project/.git" ]; then
+              echo "Клонируем репозиторий..."
+              rm -rf drf_project
+              git clone -b feature/homework git@github.com:${{ github.repository }}.git drf_project
+            fi
+            
+            cd drf_project
             echo "📦 Pulling latest code..."
-            cd /home/app/drf_project
             git reset --hard HEAD
             git pull origin feature/homework
 
