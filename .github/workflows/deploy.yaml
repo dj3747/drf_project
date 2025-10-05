@@ -92,7 +92,8 @@ jobs:
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
+          key: ${{ secrets.SSH_KEY }}
+          password: ${{ secrets.SSH_PASSPHRASE }}
           script: |
             cd /home/${{ secrets.SERVER_USER }}/app/PythonProject30.1 || mkdir -p /home/${{ secrets.SSH_USER }}/app/drf_project && cd /home/${{ secrets.SSH_USER }}/app/drf_project
             cat << 'EOF' > .env
