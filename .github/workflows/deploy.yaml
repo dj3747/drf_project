@@ -115,9 +115,7 @@ jobs:
             set -x
 
             # --- СОЗДАНИЕ docker-compose.yaml НА СЕРВЕРЕ ---
-            # !!! ВСТАВЬТЕ СОДЕРЖИМОЕ ВАШЕГО ЛОКАЛЬНОГО docker-compose.yaml СЮДА !!!
-            # !!! Убедитесь, что Dockerfile находится в корне проекта НА СЕРВЕРЕ !!!
-            cat << 'EOF' > docker-compose.yaml
+            DOCKER_COMPOSE_CONTENT=$(cat << EOC
 
             services:
               web:
@@ -139,9 +137,9 @@ jobs:
                 volumes:
                   - postgres_data:/var/lib/postgresql/data/
                 environment:
-                  POSTGRES_DB: $DB_NAME
-                  POSTGRES_USER: $DB_USER
-                  POSTGRES_PASSWORD: $DB_PASSWORD
+                  POSTGRES_DB: ${{ secrets.DB_NAME }}
+                  POSTGRES_USER: ${{ secrets.DB_USER }}
+                  POSTGRES_PASSWORD: ${{ secrets.DB_PASSWORD }}
               redis:
                 image: redis:7-alpine
                 container_name: drf_redis
@@ -163,10 +161,12 @@ jobs:
               static_volume:
               media_volume:
             EOF
+            )
+            echo "$DOCKER_COMPOSE_CONTENT" > docker-compose.yaml
             # --- КОНЕЦ СОЗДАНИЯ docker-compose.yaml ---
 
             # --- СОЗДАНИЕ nginx.conf НА СЕРВЕРЕ ---
-            }cat > nginx.conf << 'EOF'
+            NGINX_CONF_CONTENT=$(cat << EOC
             server {
                 listen 80;
                 server_name _;
@@ -190,27 +190,27 @@ jobs:
                 }
             }
             EOF
+            )
+            echo "$NGINX_CONF_CONTENT" > nginx.conf
             # --- КОНЕЦ СОЗДАНИЯ nginx.conf ---
 
             # --- СОЗДАНИЕ .env ФАЙЛА НА СЕРВЕРЕ ---
             echo "--- Creating .env file on server ---"
             cat << 'EOF' > .env
-            DB_NAME=$DB_NAME
-            DB_USER=$DB_USER
-            DB_PASSWORD=$DB_PASSWORD
+            DB_NAME=${{ secrets.DB_NAME }}
+            DB_USER=${{ secrets.DB_USER }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
             DB_HOST=postgres
             DB_PORT=5432
-            SECRET_KEY=$SECRET_KEY
-            # STRIPE_SECRET_KEY=$STRIPE_SECRET_KEY
-            # STRIPE_PUBLISHABLE_KEY=$STRIPE_PUBLISHABLE_KEY
+            SECRET_KEY=${{ secrets.SECRET_KEY }}
+            STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
+            STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}
             CELERY_BROKER_URL=redis://redis:6379/0
             CELERY_RESULT_BACKEND=redis://redis:6379/0
             REDIS_HOST=redis
             REDIS_PORT=6379
             REDIS_DB=0
             DEBUG=False
-            ALLOWED_HOSTS=$ALLOWED_HOSTS
-            # CSRF_TRUSTED_ORIGINS=$CSRF_TRUSTED_ORIGINS
             EOF
             # --- КОНЕЦ СОЗДАНИЯ .env ФАЙЛА ---
 
