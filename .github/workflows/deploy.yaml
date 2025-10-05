@@ -1,4 +1,5 @@
 name: CI/CD
+
 on:
   push:
     branches: [ "feature/homework" ]
@@ -93,8 +94,7 @@ jobs:
         run: |
           poetry run python manage.py test
 
-
-  deploy:
+  deploy: # Ваш job для развертывания
     runs-on: ubuntu-latest
     needs: test
     if: github.ref == 'refs/heads/feature/homework'
@@ -103,6 +103,160 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      # --- ШАГ 1: ПОДГОТОВКА DOCKER-COMPOSE.YML ---
+      - name: Prepare Docker Compose Content
+        id: docker_compose
+        run: |
+          echo "--- Preparing docker-compose.yaml content ---"
+          # Используем EOF (без кавычек), чтобы GitHub Actions раскрыл секреты
+          CONTENT=$(cat << EOF
+services:
+  web:
+    build: .
+    container_name: django_app
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/app
+      - staticfiles:/app/static
+      - media_volume:/app/media
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - redis
+  db:
+    image: postgres:15
+    container_name: drf_postgres
+    environment:
+      POSTGRES_DB: ${{ secrets.DB_NAME }}
+      POSTGRES_USER: ${{ secrets.DB_USER }}
+      POSTGRES_PASSWORD: ${{ secrets.DB_PASSWORD }}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER}" ]
+      interval: 10s
+      retries: 5
+      timeout: 5s
+  redis:
+    image: redis:7-alpine
+    container_name: drf_redis
+    ports:
+      - "6379:6379"
+    restart: always
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      retries: 5
+      timeout: 5s
+  celery:
+    build: .
+    container_name: celery_worker
+    command: celery -A config worker -l info -P eventlet
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - redis
+  celery_beat:
+    build: .
+    container_name: celery_beat
+    command: celery -A config beat -l info
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - redis
+  nginx:
+    image: nginx:latest
+    container_name: drf_nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./docker/conf.d:/etc/nginx/conf.d
+      - staticfiles:/app/static
+      - media_volume:/app/media
+    depends_on:
+      - web
+volumes:
+  postgres_data:
+  redis_data:
+  staticfiles:
+  media_volume:
+EOF
+          )
+echo "content=$CONTENT" >> $GITHUB_OUTPUT # <-- Корректное сохранение вывода шага
+
+      # --- ШАГ 2: ПОДГОТОВКА КОНФИГА NGINX ---
+      - name: Prepare Nginx Config Content
+        id: nginx_config
+        run: |
+          echo "--- Preparing nginx.conf content ---"
+          # Используем EOF (без кавычек) для раскрытия секретов GitHub Actions
+          CONTENT=$(cat << EOF
+server {
+  listen 80;
+  server_name _;
+  
+  location /static/ {
+    alias /app/static/;
+    expires 30d;
+  }
+
+  location /media/ {
+    alias /app/media/;
+    expires 30d;
+  }
+
+  location / {
+    proxy_pass http://web:8000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+}
+EOF
+          )
+          echo "content=$CONTENT" >> $GITHUB_OUTPUT # <-- Корректное сохранение вывода шага
+
+      # --- ШАГ 3: ПОДГОТОВКА .ENV ФАЙЛА ---
+      - name: Prepare .env Content
+        id: env_content
+        run: |
+          echo "--- Preparing .env content ---"
+          # Используем EOF (без кавычек) для раскрытия секретов GitHub Actions
+          CONTENT=$(cat << EOF
+DB_NAME=${{ secrets.DB_NAME }}
+DB_USER=${{ secrets.DB_USER }}
+DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+DB_HOST=db
+DB_PORT=5432
+SECRET_KEY=${{ secrets.SECRET_KEY }}
+STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
+STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+CELERY_BROKER_URL=redis://redis:6379/0
+CELERY_RESULT_BACKEND=redis://redis:6379/0
+REDIS_HOST=redis
+REDIS_PORT=6379
+REDIS_DB=0
+DEBUG=False
+ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
+EOF
+          )
+          echo "content=$CONTENT" >> $GITHUB_OUTPUT # <-- Корректное сохранение вывода шага
+
+      # --- ШАГ 4: РАЗВЕРТЫВАНИЕ НА СЕРВЕРЕ ---
       - name: Deploy to server
         uses: appleboy/ssh-action@v0.1.10
         with:
@@ -111,122 +265,37 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
           port: 22
-          script: |
-            set -x
+          # environment_vars: <-- Убедитесь, что эта секция удалена или закомментирована
 
-            # --- СОЗДАНИЕ docker-compose.yaml НА СЕРВЕРЕ ---
-            DOCKER_COMPOSE_CONTENT=$(cat << EOC
-
-            services:
-              web:
-                build: .
-                container_name: django_app
-                ports:
-                  - "8000:8000"
-                volumes:
-                  - static_volume:/app/static
-                  - media_volume:/app/media
-                env_file:
-                  - .env
-                depends_on:
-                  - postgres
-                  - redis
-              postgres:
-                image: postgres:15
-                container_name: drf_postgres
-                volumes:
-                  - postgres_data:/var/lib/postgresql/data/
-                environment:
-                  POSTGRES_DB: ${{ secrets.DB_NAME }}
-                  POSTGRES_USER: ${{ secrets.DB_USER }}
-                  POSTGRES_PASSWORD: ${{ secrets.DB_PASSWORD }}
-              redis:
-                image: redis:7-alpine
-                container_name: drf_redis
-                volumes:
-                  - redis_data:/data
-              nginx:
-                image: nginx:latest
-                container_name: drf_nginx
-                ports:
-                  - "80:80"
-                volumes:
-                  - ./docker/conf.d:/etc/nginx/conf.d
-                depends_on:
-                  - web
-                restart: always
-            volumes:
-              postgres_data:
-              redis_data:
-              static_volume:
-              media_volume:
-            EOF
-            )
-            echo "$DOCKER_COMPOSE_CONTENT" > docker-compose.yaml
-            # --- КОНЕЦ СОЗДАНИЯ docker-compose.yaml ---
-
-            # --- СОЗДАНИЕ nginx.conf НА СЕРВЕРЕ ---
-            NGINX_CONF_CONTENT=$(cat << EOC
-            server {
-                listen 80;
-                server_name _;
-            
-                location /static/ {
-                    alias /app/static/;
-                    expires 30d;
-                }
-            
-                location /media/ {
-                    alias /app/media/;
-                    expires 30d;
-                }
-            
-                location / {
-                    proxy_pass http://web:8000;
-                    proxy_set_header Host $host;
-                    proxy_set_header X-Real-IP $remote_addr;
-                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                    proxy_set_header X-Forwarded-Proto $scheme;
-                }
-            }
-            EOC
-            )
-            echo "$NGINX_CONF_CONTENT" > nginx.conf
-            # --- КОНЕЦ СОЗДАНИЯ nginx.conf ---
-
-            # --- СОЗДАНИЕ .env ФАЙЛА НА СЕРВЕРЕ ---
-            echo "--- Creating .env file on server ---"
-            cat << 'EOF' > .env
-            DB_NAME=${{ secrets.DB_NAME }}
-            DB_USER=${{ secrets.DB_USER }}
-            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-            DB_HOST=postgres
-            DB_PORT=5432
-            SECRET_KEY=${{ secrets.SECRET_KEY }}
-            STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
-            STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}
-            CELERY_BROKER_URL=redis://redis:6379/0
-            CELERY_RESULT_BACKEND=redis://redis:6379/0
-            REDIS_HOST=redis
-            REDIS_PORT=6379
-            REDIS_DB=0
-            DEBUG=False
-            EOF
-            # --- КОНЕЦ СОЗДАНИЯ .env ФАЙЛА ---
-
-            # --- Ваши команды ---
-            echo "--- Navigating to deployment directory ---"
-            cd "$DEPLOY_DIR_ON_SERVER"
-            echo "Current directory: $(pwd)"
-
-            echo "Stopping containers..."
-            docker compose down
-            
-            echo "Rebuilding and starting containers..."
-            docker compose up -d --build
-            
-            echo "Running migrations and collecting static..."
-            docker compose exec web python manage.py migrate
-            docker compose exec web python manage.py collectstatic --noinput
-
-            echo "Deploy finished"
+        script: |
+          set -ex
+          
+          # 1. Создаем docker-compose.yaml
+          echo "${{ steps.docker_compose.outputs.content }}" > docker-compose.yaml
+          
+          # 2. Создаем директорию для конфига Nginx (требуется для volume mapping в compose)
+          mkdir -p docker/conf.d
+          
+          # 3. Создаем nginx.conf (как default.conf в нужной директории)
+          echo "${{ steps.nginx_config.outputs.content }}" > docker/conf.d/default.conf
+          
+          # 4. Создаем .env файл
+          echo "--- Creating .env file on server ---"
+          echo "${{ steps.env_content.outputs.content }}" > .env
+          
+          # 5. Выполняем команды развертывания
+          echo "--- Navigating to deployment directory ---"
+          cd "${{ secrets.DEPLOY_DIR }}"
+          echo "Current directory: $(pwd)"
+          
+          echo "Stopping containers..."
+          docker compose down
+          
+          echo "Rebuilding and starting containers..."
+          docker compose up -d --build
+          
+          echo "Running migrations and collecting static..."
+          docker compose exec web python manage.py migrate
+          docker compose exec web python manage.py collectstatic --noinput
+          
+          echo "Deploy finished"
