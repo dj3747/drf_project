@@ -57,20 +57,31 @@ jobs:
           done
       - name: Run migrations
         env:
-          DB_NAME: ${{ secrets.DB_NAME }}
-          DB_USER: ${{ secrets.DB_USER }}
-          DB_HOST: db
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: drf
+          DB_USER: postgres
+          DB_PASSWORD: Akoros781
+          DB_HOST: 127.0.0.1  # используем IPv4
+          DB_PORT: 5432
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
-          REDIS_HOST: redis
+          CELERY_BROKER_URL: redis://localhost:6379/0
+          CELERY_RESULT_BACKEND: redis://localhost:6379/0
+          REDIS_HOST: localhost
           REDIS_PORT: 6379
           REDIS_DB: 0
           DEBUG: True
         run: |
-            poetry run python manage.py migrate
+          # Установим postgresql-client для проверки подключения
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
           
+          # Проверка подключения к PostgreSQL с помощью psql
+          PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -U $DB_USER -d $DB_NAME -c "SELECT 1;"
+          
+          # Если предыдущая команда выполнилась успешно, то запускаем миграции
+          poetry run python manage.py migrate
+        
 
   deploy:
     runs-on: ubuntu-latest
