@@ -91,11 +91,11 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_IP }}
-          username: ${{ secrets.SERVER_USER }}
+          username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           password: ${{ secrets.SSH_PASSPHRASE }}
           script: |
-            cd /home/${{ secrets.SERVER_USER }}/app/PythonProject30.1 || mkdir -p /home/${{ secrets.SSH_USER }}/app/drf_project && cd /home/${{ secrets.SSH_USER }}/app/drf_project
+            cd /home/${{ secrets.SSH_USER }}/app/drf_project || mkdir -p /home/${{ secrets.SSH_USER }}/app/drf_project && cd /home/${{ secrets.SSH_USER }}/app/drf_project
             cat << 'EOF' > .env
             SECRET_KEY=${{ secrets.SECRET_KEY }}
             DB_NAME=${{ secrets.DB_NAME }}
