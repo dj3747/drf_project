@@ -95,16 +95,20 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           password: ${{ secrets.SSH_PASSPHRASE }}
           script: |
-            # Создаем директорию, если ее нет, и переходим в нее
-            mkdir -p /home/app/drf_project
-            cd /home/app/drf_project
-            
-            # Если нет репозитория, клонируем, иначе пуллим
-            if [ ! -d ".git" ]; then
+            set -ex
+
+            # Переходим в домашнюю директорию
+            cd /home/app
+
+            # Полностью удаляем старую директорию
+            sudo rm -rf drf_project
+
+            # Создаем чистую директорию
+            mkdir -p drf_project
+            cd drf_project
+
+            # Клонируем репозиторий
             git clone -b feature/homework git@github.com:${{ github.repository }}.git .
-            else
-            git pull origin feature/homework
-            fi
             
             cat << 'EOF' > .env
             SECRET_KEY=${{ secrets.SECRET_KEY }}
@@ -129,7 +133,6 @@ jobs:
             
             # Останавливаем старые контейнеры, если они есть
             sudo docker compose down || true
-            # Подтягиваем свежий код
-            git pull origin feature/homework || git clone -b feature/homework git@github.com:${{ github.repository }}.git .
+            
             # Собираем и запускаем контейнеры
             sudo docker compose up -d --build
