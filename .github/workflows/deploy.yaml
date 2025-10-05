@@ -110,14 +110,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
-          environment_vars: |
-            DEPLOY_DIR_ON_SERVER={{ secrets.DEPLOY_DIR }}
-            DB_NAME=${{ secrets.DB_NAME }}
-            DB_USER=${{ secrets.DB_USER }}
-            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-            SECRET_KEY=${{ secrets.SECRET_KEY }}
-            # STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }} # Раскомментируйте, если используете
-            # ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }} # Раскомментируйте, если используете
+          port: 22
           script: |
             set -x
 
@@ -125,12 +118,11 @@ jobs:
             # !!! ВСТАВЬТЕ СОДЕРЖИМОЕ ВАШЕГО ЛОКАЛЬНОГО docker-compose.yaml СЮДА !!!
             # !!! Убедитесь, что Dockerfile находится в корне проекта НА СЕРВЕРЕ !!!
             cat << 'EOF' > docker-compose.yaml
-            version: '3.8'
 
             services:
               web:
                 build: .
-                container_name: drf_web
+                container_name: django_app
                 ports:
                   - "8000:8000"
                 volumes:
@@ -174,27 +166,27 @@ jobs:
             # --- КОНЕЦ СОЗДАНИЯ docker-compose.yaml ---
 
             # --- СОЗДАНИЕ nginx.conf НА СЕРВЕРЕ ---
-            # !!! ВСТАВЬТЕ СОДЕРЖИМОЕ ВАШЕГО ЛОКАЛЬНОГО nginx.conf СЮДА !!!
-            cat << 'EOF' > nginx.conf
-            events {
-                worker_connections 1024;
-            }
-
-            http {
-                include       /etc/nginx/mime.types;
-                default_type  application/octet-stream;
-                sendfile        on;
-                keepalive_timeout 65;
-
-                server {
-                    listen 80;
-                    location / {
-                        proxy_pass http://web:8000;
-                        proxy_set_header Host $host;
-                        proxy_set_header X-Real-IP $remote_addr;
-                        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                        proxy_set_header X-Forwarded-Proto $scheme;
-                    }
+            }cat > nginx.conf << 'EOF'
+            server {
+                listen 80;
+                server_name _;
+            
+                location /static/ {
+                    alias /app/static/;
+                    expires 30d;
+                }
+            
+                location /media/ {
+                    alias /app/media/;
+                    expires 30d;
+                }
+            
+                location / {
+                    proxy_pass http://web:8000;
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto $scheme;
                 }
             }
             EOF
