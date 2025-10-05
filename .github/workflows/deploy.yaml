@@ -99,6 +99,13 @@ jobs:
             mkdir -p /home/app/drf_project
             cd /home/app/drf_project
             
+            # Если нет репозитория, клонируем, иначе пуллим
+            if [ ! -d ".git" ]; then
+            git clone -b feature/homework git@github.com:${{ github.repository }}.git .
+            else
+            git pull origin feature/homework
+            fi
+            
             cat << 'EOF' > .env
             SECRET_KEY=${{ secrets.SECRET_KEY }}
             DB_NAME=${{ secrets.DB_NAME }}
