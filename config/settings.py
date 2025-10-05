@@ -10,6 +10,7 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+STATIC_ROOT = os.environ.get('STATIC_ROOT', '/app/static')
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 
@@ -151,3 +152,5 @@ REDIS_PORT = os.getenv("REDIS_PORT")
 REDIS_DB = os.getenv("REDIS_DB")
 
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+STATIC_ROOT = '/app/static'
