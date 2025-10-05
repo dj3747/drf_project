@@ -1,11 +1,9 @@
-name: CI/CD
-
+name: Deploy Django Project
 on:
   push:
     branches: [ "feature/homework" ]
   pull_request:
     branches: [ "feature/homework" ]
-
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -24,7 +22,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
       redis:
-        image: redis:7-alpine
+        image: redis:7
         ports:
           - 6379:6379
         options: >-
@@ -32,270 +30,82 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
-
+        uses: actions/checkout@v3
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: 3.13
-
-      - name: Install Poetry
+      - name: Install dependencies
         run: |
-          curl -sSL https://install.python-poetry.org | python3 -
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-      - name: Install dependencies with Poetry
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Wait for Postgres
         run: |
-          poetry install --no-root
-
-      - name: Install redis-tools for redis-cli
+          until pg_isready -h localhost -p 5432 -U postgres; do
+            echo "Waiting for Postgres..."
+            sleep 3
+          done
+      - name: Wait for Redis
         run: |
-          sudo apt-get update
-          sudo apt-get install -y redis-tools
-
+         until docker exec $(docker ps -q -f ancestor=redis:7) redis-cli ping | grep PONG; do
+            echo "Waiting for Redis..."
+            sleep 3
+          done
       - name: Run migrations
         env:
-          DB_NAME: drf
-          DB_USER: postgres
-          DB_PASSWORD: Akoros781
-          DB_HOST: localhost
-          DB_PORT: 5432
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
-          CELERY_BROKER_URL: redis://localhost:6379/0
-          CELERY_RESULT_BACKEND: redis://localhost:6379/0
           REDIS_HOST: localhost
           REDIS_PORT: 6379
           REDIS_DB: 0
           DEBUG: True
         run: |
-          poetry run python manage.py migrate
+            python manage.py migrate
+          
 
-      - name: Run tests
-        env:
-          DB_NAME: drf
-          DB_USER: postgres
-          DB_PASSWORD: Akoros781
-          DB_HOST: localhost
-          DB_PORT: 5432
-          SECRET_KEY: ${{ secrets.SECRET_KEY }}
-          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
-          STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
-          CELERY_BROKER_URL: redis://localhost:6379/0
-          CELERY_RESULT_BACKEND: redis://localhost:6379/0
-          REDIS_HOST: localhost
-          REDIS_PORT: 6379
-          REDIS_DB: 0
-          DEBUG: True
-        run: |
-          poetry run python manage.py test
-
-  deploy: # Ваш job для развертывания
+  deploy:
     runs-on: ubuntu-latest
     needs: test
-    if: github.ref == 'refs/heads/feature/homework'
-
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      # --- ШАГ 1: ПОДГОТОВКА DOCKER-COMPOSE.YML ---
-      - name: Prepare Docker Compose Content
-        id: docker_compose
-        run: |
-          echo "--- Preparing docker-compose.yaml content ---"
-          # Используем EOF (без кавычек), чтобы GitHub Actions раскрыл секреты
-          CONTENT=$(cat << EOF
-services:
-  web:
-    build: .
-    container_name: django_app
-    command: python manage.py runserver 0.0.0.0:8000
-    volumes:
-      - .:/app
-      - staticfiles:/app/static
-      - media_volume:/app/media
-    ports:
-      - "8000:8000"
-    env_file:
-      - .env
-    depends_on:
-      - db
-      - redis
-  db:
-    image: postgres:15
-    container_name: drf_postgres
-    environment:
-      POSTGRES_DB: ${{ secrets.DB_NAME }}
-      POSTGRES_USER: ${{ secrets.DB_USER }}
-      POSTGRES_PASSWORD: ${{ secrets.DB_PASSWORD }}
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER}" ]
-      interval: 10s
-      retries: 5
-      timeout: 5s
-  redis:
-    image: redis:7-alpine
-    container_name: drf_redis
-    ports:
-      - "6379:6379"
-    restart: always
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
-      interval: 10s
-      retries: 5
-      timeout: 5s
-  celery:
-    build: .
-    container_name: celery_worker
-    command: celery -A config worker -l info -P eventlet
-    volumes:
-      - .:/app
-    env_file:
-      - .env
-    depends_on:
-      - db
-      - redis
-  celery_beat:
-    build: .
-    container_name: celery_beat
-    command: celery -A config beat -l info
-    volumes:
-      - .:/app
-    env_file:
-      - .env
-    depends_on:
-      - db
-      - redis
-  nginx:
-    image: nginx:latest
-    container_name: drf_nginx
-    ports:
-      - "80:80"
-    volumes:
-      - ./docker/conf.d:/etc/nginx/conf.d
-      - staticfiles:/app/static
-      - media_volume:/app/media
-    depends_on:
-      - web
-volumes:
-  postgres_data:
-  redis_data:
-  staticfiles:
-  media_volume:
-EOF
-          )
-echo "content=$CONTENT" >> $GITHUB_OUTPUT # <-- Корректное сохранение вывода шага
-
-      # --- ШАГ 2: ПОДГОТОВКА КОНФИГА NGINX ---
-      - name: Prepare Nginx Config Content
-        id: nginx_config
-        run: |
-          echo "--- Preparing nginx.conf content ---"
-          # Используем EOF (без кавычек) для раскрытия секретов GitHub Actions
-          CONTENT=$(cat << EOF
-server {
-  listen 80;
-  server_name _;
-  
-  location /static/ {
-    alias /app/static/;
-    expires 30d;
-  }
-
-  location /media/ {
-    alias /app/media/;
-    expires 30d;
-  }
-
-  location / {
-    proxy_pass http://web:8000;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-  }
-}
-EOF
-          )
-          echo "content=$CONTENT" >> $GITHUB_OUTPUT # <-- Корректное сохранение вывода шага
-
-      # --- ШАГ 3: ПОДГОТОВКА .ENV ФАЙЛА ---
-      - name: Prepare .env Content
-        id: env_content
-        run: |
-          echo "--- Preparing .env content ---"
-          # Используем EOF (без кавычек) для раскрытия секретов GitHub Actions
-          CONTENT=$(cat << EOF
-DB_NAME=${{ secrets.DB_NAME }}
-DB_USER=${{ secrets.DB_USER }}
-DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-DB_HOST=db
-DB_PORT=5432
-SECRET_KEY=${{ secrets.SECRET_KEY }}
-STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
-STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}
-CELERY_BROKER_URL=redis://redis:6379/0
-CELERY_RESULT_BACKEND=redis://redis:6379/0
-REDIS_HOST=redis
-REDIS_PORT=6379
-REDIS_DB=0
-DEBUG=False
-ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
-EOF
-          )
-          echo "content=$CONTENT" >> $GITHUB_OUTPUT # <-- Корректное сохранение вывода шага
-
-      # --- ШАГ 4: РАЗВЕРТЫВАНИЕ НА СЕРВЕРЕ ---
-      - name: Deploy to server
-        uses: appleboy/ssh-action@v0.1.10
+      - name: Deploy to YandexCloud VM
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_IP }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          passphrase: ${{ secrets.SSH_PASSPHRASE }}
-          port: 22
-          # environment_vars: <-- Убедитесь, что эта секция удалена или закомментирована
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            cd /home/${{ secrets.SERVER_USER }}/app/PythonProject30.1 || mkdir -p /home/${{ secrets.SSH_USER }}/app/drf_project && cd /home/${{ secrets.SSH_USER }}/app/drf_project
+            cat << 'EOF' > .env
+            SECRET_KEY=${{ secrets.SECRET_KEY }}
+            DB_NAME=${{ secrets.DB_NAME }}
+            DB_USER=${{ secrets.DB_USER }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            DB_HOST=${{ secrets.DB_HOST }}
+            DB_PORT=${{ secrets.DB_PORT }}
+            
+            # Django
+            DEBUG=True
+            
+            # Stripe
+            STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
+            STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+            
+            # Redis
+            REDIS_HOST=${{ secrets.REDIS_HOST }}
+            REDIS_PORT=${{ secrets.REDIS_PORT }}
+            REDIS_DB=${{ secrets.REDIS_DB }}
 
-        script: |
-          set -ex
-          
-          # 1. Создаем docker-compose.yaml
-          echo "${{ steps.docker_compose.outputs.content }}" > docker-compose.yaml
-          
-          # 2. Создаем директорию для конфига Nginx (требуется для volume mapping в compose)
-          mkdir -p docker/conf.d
-          
-          # 3. Создаем nginx.conf (как default.conf в нужной директории)
-          echo "${{ steps.nginx_config.outputs.content }}" > docker/conf.d/default.conf
-          
-          # 4. Создаем .env файл
-          echo "--- Creating .env file on server ---"
-          echo "${{ steps.env_content.outputs.content }}" > .env
-          
-          # 5. Выполняем команды развертывания
-          echo "--- Navigating to deployment directory ---"
-          cd "${{ secrets.DEPLOY_DIR }}"
-          echo "Current directory: $(pwd)"
-          
-          echo "Stopping containers..."
-          docker compose down
-          
-          echo "Rebuilding and starting containers..."
-          docker compose up -d --build
-          
-          echo "Running migrations and collecting static..."
-          docker compose exec web python manage.py migrate
-          docker compose exec web python manage.py collectstatic --noinput
-          
-          echo "Deploy finished"
+            EOF
+            
+            # Останавливаем старые контейнеры, если они есть
+            sudo docker compose down || true
+            # Подтягиваем свежий код
+            git pull origin feature || git clone -b feature git@github.com:${{ github.repository }}.git .
+            # Собираем и запускаем контейнеры
+            sudo docker compose up -d --build
