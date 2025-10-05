@@ -95,7 +95,10 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           password: ${{ secrets.SSH_PASSPHRASE }}
           script: |
-            cd /home/${{ secrets.SSH_USER }}/app/drf_project || mkdir -p /home/${{ secrets.SSH_USER }}/app/drf_project && cd /home/${{ secrets.SSH_USER }}/app/drf_project
+            # Создаем директорию, если ее нет, и переходим в нее
+            mkdir -p /home/app/drf_project
+            cd /home/app/drf_project
+            
             cat << 'EOF' > .env
             SECRET_KEY=${{ secrets.SECRET_KEY }}
             DB_NAME=${{ secrets.DB_NAME }}
@@ -109,18 +112,17 @@ jobs:
             
             # Stripe
             STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
-            STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+            STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}
             
             # Redis
             REDIS_HOST=${{ secrets.REDIS_HOST }}
             REDIS_PORT=${{ secrets.REDIS_PORT }}
             REDIS_DB=${{ secrets.REDIS_DB }}
-
             EOF
             
             # Останавливаем старые контейнеры, если они есть
             sudo docker compose down || true
             # Подтягиваем свежий код
-            git pull origin feature || git clone -b feature git@github.com:${{ github.repository }}.git .
+            git pull origin feature/homework || git clone -b feature/homework git@github.com:${{ github.repository }}.git .
             # Собираем и запускаем контейнеры
             sudo docker compose up -d --build
