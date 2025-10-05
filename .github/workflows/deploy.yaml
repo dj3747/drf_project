@@ -96,12 +96,11 @@ jobs:
           password: ${{ secrets.SSH_PASSPHRASE }}
           script: |
             set -ex
-            cd /home/app
-            sudo rm -rf ***_project
-            mkdir -p ***_project
-            cd ***_project
+            echo "📦 Pulling latest code..."
+            cd /home/app/drf_project
+            git reset --hard HEAD
+            git pull origin feature/homework
 
-            git clone -b feature/homework git@github.com:${{ github.repository }}.git . -c core.sshCommand="ssh -o StrictHostKeyChecking=no"
             
             cat << 'EOF' > .env
             SECRET_KEY=${{ secrets.SECRET_KEY }}
