@@ -110,9 +110,9 @@ jobs:
               git clone -b feature/homework git@github.com:${{ github.repository }}.git drf_project
             fi
             
-            cd drf_project
-            echo "📦 Pulling latest code..."
+            cd /home/app/***_project
             git reset --hard HEAD
+            mv docker/conf.d/default.conf docker/conf.d/default.conf.backup
             git pull origin feature/homework
 
             
