@@ -96,19 +96,12 @@ jobs:
           password: ${{ secrets.SSH_PASSPHRASE }}
           script: |
             set -ex
-
-            # Переходим в домашнюю директорию
             cd /home/app
+            sudo rm -rf ***_project
+            mkdir -p ***_project
+            cd ***_project
 
-            # Полностью удаляем старую директорию
-            sudo rm -rf drf_project
-
-            # Создаем чистую директорию
-            mkdir -p drf_project
-            cd drf_project
-
-            # Клонируем репозиторий
-            git clone -b feature/homework git@github.com:${{ github.repository }}.git .
+            git clone -b feature/homework git@github.com:${{ github.repository }}.git . -c core.sshCommand="ssh -o StrictHostKeyChecking=no"
             
             cat << 'EOF' > .env
             SECRET_KEY=${{ secrets.SECRET_KEY }}
