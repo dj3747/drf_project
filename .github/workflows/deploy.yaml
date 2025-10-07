@@ -1,0 +1,144 @@
+name: Deploy Django Project
+on:
+  push:
+    branches: [ "feature/homework" ]
+  pull_request:
+    branches: [ "feature/homework" ]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: drf
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: Akoros781
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.13
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install dependencies
+        run: poetry install --no-interaction --no-root
+
+      - name: Wait for Postgres
+        run: |
+          until pg_isready -h localhost -p 5432 -U postgres; do
+            echo "Waiting for Postgres..."
+            sleep 3
+          done
+      - name: Wait for Redis
+        run: |
+         until docker exec $(docker ps -q -f ancestor=redis:7) redis-cli ping | grep PONG; do
+            echo "Waiting for Redis..."
+            sleep 3
+          done
+      - name: Run migrations
+        env:
+          DB_NAME: drf
+          DB_USER: postgres
+          DB_PASSWORD: Akoros781
+          DB_HOST: 127.0.0.1  # используем IPv4
+          DB_PORT: 5432
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+          CELERY_BROKER_URL: redis://localhost:6379/0
+          CELERY_RESULT_BACKEND: redis://localhost:6379/0
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          REDIS_DB: 0
+          DEBUG: True
+        run: |
+          # Установим postgresql-client для проверки подключения
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          
+          # Проверка подключения к PostgreSQL с помощью psql
+          PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -U $DB_USER -d $DB_NAME -c "SELECT 1;"
+          
+          # Если предыдущая команда выполнилась успешно, то запускаем миграции
+          poetry run python manage.py migrate
+        
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Deploy to YandexCloud VM
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -ex
+            # Настраиваем SSH для GitHub
+            mkdir -p ~/.ssh
+            echo "${{ secrets.GH_SSH_PRIVATE_KEY }}" > ~/.ssh/github_key
+            chmod 600 ~/.ssh/github_key
+            ssh-keyscan github.com >> ~/.ssh/known_hosts
+            git config --global core.sshCommand "ssh -i ~/.ssh/github_key -o StrictHostKeyChecking=no"
+            
+            # Работа с репозиторием
+            cd /home/app
+            if [ ! -d "drf_project/.git" ]; then
+              echo "Клонируем репозиторий..."
+              rm -rf drf_project
+              git clone -b feature/homework git@github.com:${{ github.repository }}.git drf_project
+            fi
+
+            cd /home/app/drf_project
+            git reset --hard HEAD
+            git clean -fd
+            git pull origin feature/homework
+
+            
+            cat << 'EOF' > .env
+            SECRET_KEY=${{ secrets.SECRET_KEY }}
+            DB_NAME=${{ secrets.DB_NAME }}
+            DB_USER=${{ secrets.DB_USER }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            DB_HOST=${{ secrets.DB_HOST }}
+            DB_PORT=${{ secrets.DB_PORT }}
+            
+            # Django
+            DEBUG=True
+            
+            # Stripe
+            STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
+            STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+            
+            # Redis
+            REDIS_HOST=${{ secrets.REDIS_HOST }}
+            REDIS_PORT=${{ secrets.REDIS_PORT }}
+            REDIS_DB=${{ secrets.REDIS_DB }}
+            EOF
+            
+            # Останавливаем старые контейнеры, если они есть
+            sudo docker compose down || true
+            
+            # Собираем и запускаем контейнеры
+            sudo docker compose up -d --build
