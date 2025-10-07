@@ -81,7 +81,9 @@ jobs:
           
           # Если предыдущая команда выполнилась успешно, то запускаем миграции
           poetry run python manage.py migrate
-        
+          # Проверка flake8
+      - name: Run Flake8 linting
+        run: poetry run flake8
 
   deploy:
     runs-on: ubuntu-latest
@@ -138,7 +140,9 @@ jobs:
             EOF
             
             # Останавливаем старые контейнеры, если они есть
-            sudo docker compose down || true
+            sudo docker compose -f docker-compose.yaml down || true
             
             # Собираем и запускаем контейнеры
-            sudo docker compose up -d --build
+            sudo docker compose -f docker-compose.yaml up -d --build
+            
+            echo "Deploy finished"
