@@ -17,24 +17,24 @@ services:
 
   db:
     image: postgres:15
-    container_name: postgres_db
+    container_name: drf_postgres
     environment:
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: drf
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Akoros781
     ports:
       - "5432:5432"
     volumes:
         - postgres_data:/var/lib/postgresql/data
     healthcheck:
-        test: [ "CMD-SHELL", "pg_isready -U ${DB_USER}" ]
+        test: [ "CMD-SHELL", "pg_isready -U postgres" ]
         interval: 10s
         retries: 5
         timeout: 5s
 
   redis:
     image: redis:7-alpine
-    container_name: redis_cache
+    container_name: drf_redis
     ports:
       - "6379:6379"
     restart: always
@@ -69,6 +69,18 @@ services:
     depends_on:
       - db
       - redis
+
+  nginx:
+    image: nginx:latest
+    container_name: drf_nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./docker/conf.d:/etc/nginx/conf.d
+      - staticfiles:/app/static
+      - media_volume:/app/media
+    depends_on:
+      - web
 
 volumes:
   postgres_data:
