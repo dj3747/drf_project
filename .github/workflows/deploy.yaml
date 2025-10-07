@@ -146,13 +146,22 @@ jobs:
             echo "--- Starting DB and Redis services only ---"
             sudo docker compose -f docker-compose.yaml up -d db redis
             
-            # Применяем миграции и собираем статику (на сервисе web)
-            echo "Running migrations and collecting static..."
-            sudo docker compose -f docker-compose.yaml exec web python manage.py migrate
-            sudo docker compose -f docker-compose.yaml exec web python manage.py collectstatic --noinput
+            # Ждем готовности базы данных
+            echo "Waiting for database to be ready..."
+            sleep 15
             
-            # Запускаем все остальные сервисы (web, nginx, celery)
-            echo "Starting application services (web, nginx, celery)..."
-            sudo docker compose -f docker-compose.yaml up -d web nginx celery 
+            # Запускаем Django-сервис (web) И применяем миграции
+            echo "Starting web service and running migrations..."
+            sudo docker compose -f docker-compose.yaml up -d web # Запускаем web
+            sleep 5 # Даем web небольшую паузу, чтобы он начал инициализацию
+            sudo docker compose -f docker-compose.yaml exec web python manage.py migrate
+            
+            # Запускаем остальные сервисы (Nginx, Celery)
+            echo "Starting Nginx and Celery services..."
+            sudo docker compose -f docker-compose.yaml up -d nginx celery
+            
+            # Собираем статику (после миграций)
+            echo "Collecting static files..."
+            sudo docker compose -f docker-compose.yaml exec web python manage.py collectstatic --noinput
             
             echo "Deploy finished"
