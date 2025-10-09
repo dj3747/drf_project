@@ -81,7 +81,9 @@ jobs:
           
           # Если предыдущая команда выполнилась успешно, то запускаем миграции
           poetry run python manage.py migrate
-        
+          # Проверка flake8
+      - name: Run Flake8 linting
+        run: poetry run flake8
 
   deploy:
     runs-on: ubuntu-latest
@@ -138,7 +140,28 @@ jobs:
             EOF
             
             # Останавливаем старые контейнеры, если они есть
-            sudo docker compose down || true
+            sudo docker compose -f docker-compose.yaml down || true
             
-            # Собираем и запускаем контейнеры
-            sudo docker compose up -d --build
+            # Запускаем только базу данных и зависимости
+            echo "--- Starting DB and Redis services only ---"
+            sudo docker compose -f docker-compose.yaml up -d db redis
+            
+            # Ждем готовности базы данных
+            echo "Waiting for database to be ready..."
+            sleep 15
+            
+            # Запускаем Django-сервис (web) И применяем миграции
+            echo "Starting web service and running migrations..."
+            sudo docker compose -f docker-compose.yaml up -d web # Запускаем web
+            sleep 5 # Даем web небольшую паузу, чтобы он начал инициализацию
+            sudo docker compose -f docker-compose.yaml exec web python manage.py migrate
+            
+            # Запускаем остальные сервисы (Nginx, Celery)
+            echo "Starting Nginx and Celery services..."
+            sudo docker compose -f docker-compose.yaml up -d nginx celery
+            
+            # Собираем статику (после миграций)
+            echo "Collecting static files..."
+            sudo docker compose -f docker-compose.yaml exec web python manage.py collectstatic --noinput
+            
+            echo "Deploy finished"
